@@ -1,0 +1,248 @@
+---
+title: "Midterm Project"
+author: "Juyoung Hahm"
+date: "3/25/2021"
+output: pdf_document
+---
+```{r message=FALSE, echo=FALSE}
+library(MASS)
+library(ISLR)
+library(GGally)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(pROC)
+library(caret)
+library(MASS)
+library(rcompanion)
+library(class)
+library(default)
+
+```
+
+# Introduction
+```{r echo=FALSE, results='hide'}
+liver = read.csv("liver.csv")
+liver = liver %>%
+  select(gender, everything()) 
+
+table(liver$is_patient)
+liver = na.omit(liver)
+
+liver$is_patient = factor(x = liver$is_patient, levels = c('1','2'), labels = c("0", "1")) 
+liver$is_patient = factor(liver$is_patient, levels = c("0","1"), labels = c("liver", "nonliver"))
+
+liver$gender=factor(x=liver$gender,levels = c('Female','Male'),labels=c(0,1)) 
+liver$gender = as.double(liver$gender) 
+# 0 -> female, 1-> male
+```
+
+Our goal is to find a most accurate model to predict whether people are liver patient or not. We searched in the Kaggle website and found data titled "Indian Liver Patient Dataset". This data set was collected from test samples in North East of Andhra Pradesh, India. To clean and tidy the data, First, I checked if there is NAs or not, and found out that there are 4 NAs, so I removed them. Then I first changed the values from `is_patient`; it was described as "1" and "2" and changed to liver and nonliver to recognoze them easily. Also, I have changed the values of gender; female to 0 and male to 1. 
+
+# Exploratory Analysis/Visualization
+Looking at the generalized pairs plot, we can see that there is a strong positive correlation between `direct_bilirubin` & `tot_bilirubin`, `ag_ratio` & `albumin`, `sgpt` & `sgot`, and `sgpt` & `alkphos`. With various correlation, we can see that there are dependent and independent variables.
+
+Looking at the histograms, most of the predictors are heavily right skewed. So since the response is binary and it is heavily right skewed, we will first start with the logistic regression model, then LDA, QDA, KNN, and NB.
+
+```{r echo=FALSE, out.width="100%"}
+ggpairs(liver[,-11], ggplot2::aes(colour = liver$is_patient))  #PLOT1
+```
+
+```{r echo=FALSE}
+par(mfrow = c(2,3))  # 3 rows and 2 columns #PLOT2
+plotNormalHistogram(resid(lm(direct_bilirubin ~ is_patient, data = liver)), xlab = "direct_bilirubin")
+plotNormalHistogram(resid(lm(tot_bilirubin ~ is_patient, data = liver)), xlab = "tot_bilirubin")
+plotNormalHistogram(resid(lm(tot_proteins ~ is_patient, data = liver)), xlab = "tot_proteins")
+plotNormalHistogram(resid(lm(ag_ratio ~ is_patient, data = liver)), xlab = "ag_ratio")
+plotNormalHistogram(resid(lm(sgot ~ is_patient, data = liver)), xlab = "sgot")
+plotNormalHistogram(resid(lm(albumin ~ is_patient, data = liver)), xlab = "albumin")
+```
+
+
+# Models
+
+For initial model, we are going to use all the predictors and check which predictors are significant or not. 
+```{r message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+#Perform a logistic regression for all predictors
+liver_logreg1 = glm(is_patient ~ gender + age + tot_bilirubin + direct_bilirubin + tot_proteins +
+                      albumin + ag_ratio + sgpt + sgot + alkphos, 
+                    data = liver, family = 'binomial')
+summary(liver_logreg1)
+```
+
+The only statistically significant variable is `age`, `albumin`, `sgpt` and `sgot`. The predictor `direct_bilirubin`, `alkphos`, and `tot_proteins` is not very far from being significant and so we will not drop it yet.
+There are many causes of liver disease; heavy alcohol use, obesity, genetics, infection, and more. So as people who aged would have increased probability of getting the disease. Albumin, Alamine Aminotransferase, and Aspartate Aminotransferase are a protein/enzymes made mostly by a liver. So, it is directly related to the response. 
+
+```{r plot3, echo=FALSE, message=FALSE}
+#confusion matrix
+pred1 = predict(liver_logreg1, type = 'response')
+pred_values1 = ifelse(pred1 >= 0.5, 'liver', 'nonliver')
+
+table_all1 = table(pred_values1, liver$is_patient) #Confusion matrix
+as.table(confusionMatrix(table_all1))
+
+dev.off() 
+set.seed(1)
+rowTrain = createDataPartition(y = liver$is_patient, p = 0.8, list = FALSE)
+
+test.pred.prob = predict(liver_logreg1, newdata = liver[-rowTrain,], type = "response")
+liver_logreg1_roc = roc(liver$is_patient[-rowTrain], test.pred.prob)
+plot(liver_logreg1_roc, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(liver_logreg1_roc), col = 4, add = TRUE)
+```
+
+Looking at the confusion matrix for initial model, the diagonal(31,120) is the value where we got the prediction right. The lower left(383) are the false positives and the upper right(45)  are the false negatives.
+
+To determine the percentage of current predictions, $\frac{31+120}{31+45+383+120} = 0.2607945$ This illustrates that the model predicted the records of liver patients correctly 26.08% of the time. While the model correctly predicted the non-liver patient(Specificity) $\frac{120}{45+120} = 0.7272727$ indicating 72.72% correct. However, liver patients were predicted at a lower rate(Sensitivity), $\frac{31}{31+383} = 0.07487923$ or only 7.49% correctly predicted. The AUC IS 0.728. With kappa value -0.1224, we are likely sure that there will be better model than this.
+
+## Fit different models with training data sets
+### 1. Logistic regression model
+
+Now we will fit the logistic model using the training data and significant predictors.
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+set.seed(1)
+
+liver_logreg2 = glm(is_patient ~ age + direct_bilirubin + albumin + sgpt +
+                      sgot + tot_proteins + alkphos, data = liver, 
+                    subset = rowTrain, family = 'binomial')
+```
+
+Let the simple classifier with a cut-off of 0.5 and evaluate its performance on the test data. We then table the confusion Matrix.
+```{r echo=FALSE}
+#confusion matrix for glm
+glm.test.pred.prob = predict(liver_logreg2, newdata = liver[-rowTrain,], type = "response")
+glm.test.pred = rep("liver", length(glm.test.pred.prob))
+glm.test.pred[glm.test.pred.prob>0.5] = "nonliver"
+
+as.table(confusionMatrix(data = as.factor(glm.test.pred), reference = liver$is_patient[-rowTrain], 
+                         positive = "nonliver"))
+```
+
+We used a logistic regression because we can build a nonlinear relationship model between independent variables and dependent variables. Also, there is no normality assumption for this model, which is good for our `liver` data since there are many heavily right skwed predictors.
+
+To determine the percentage of current predictions, $\frac{74+9}{74+24+8+9} = 0.7217$ This illustrates that the model predicted the records of liver patients correctly 72.17% of the time. The sensitivity is 27.273% and specificity is 90.244%. With Kappa measurements of 0.2048, it is a poor agreement but it rarely gives a high value. 
+
+
+### 2. LDA
+```{r echo=FALSE, message=FALSE}
+train <- liver[rowTrain, ]
+test  <- liver[-rowTrain,]
+
+set.seed(1)
+liver.lda = lda(is_patient~ log(age) + log(direct_bilirubin) + log(albumin) + log(sgpt) + log(sgot) + 
+                    log(tot_proteins) + log(alkphos), data = train)
+lda.test.pred.prob <- predict(liver.lda, newdata = test)
+lda.cm <- table(test$is_patient, lda.test.pred.prob$class)
+lda.cm
+```
+
+Since there is a normality assumption in LDA, we transform the data into log transformation. Looking at the confusion matrix, the percentage of current predictions, $\frac{77+10}{77+5+23+10} = 0.7565217$ This illustrates that the model predicted the records of liver patients correctly 75.65% of the time. The sensitivity is 77% and specificity is 66.67%. 
+
+### 3. QDA
+```{r echo=FALSE}
+liver.qda = qda(is_patient~ log(age) + log(direct_bilirubin) + log(albumin) + log(sgpt) + log(sgot) + 
+                    log(tot_proteins) + log(alkphos), data = train)
+qda.test.pred.prob <- predict(liver.qda, newdata = test)
+qda.cm <- table(test$is_patient, qda.test.pred.prob$class)
+qda.cm
+```
+With QDA, we also did log transformation, Looking at the confusion matrix, the percentage of current predictions, $\frac{41+27}{41+41+6+27} = 0.5913043$ This illustrates that the model predicted the records of liver patients correctly 59.13% of the time. The sensitivity is 87.23% and specificity is 39.71%. 
+
+### 4.KNN
+```{r message=FALSE, warning=FALSE, echo=FALSE, results=FALSE}
+set.seed(1)
+ctrl2 = trainControl(method = "cv", summaryFunction = twoClassSummary, classProbs = TRUE)
+
+liver.knn = train(x = liver[rowTrain, c(2,4:6,8:10)], y = liver$is_patient[rowTrain], method = "knn",
+                   metric = "ROC", trControl = ctrl2)
+
+ggplot(liver.knn, highlight = TRUE) #k=9
+
+ctrl3 = trainControl(method = "repeatedcv", repeats = 5, number = 9)
+liver.knn = train(x = liver[rowTrain, c(2,4:6,8:10)], y = liver$is_patient[rowTrain], method = "knn",
+                    trControl = ctrl3)
+
+knn.test.pred.prob = predict(liver.knn, newdata = liver[-rowTrain,], type = "prob")
+knn.test.pred = rep("liver", nrow(knn.test.pred.prob))
+knn.test.pred[knn.test.pred.prob > 0.5] = "nonliver"
+knn.test.pred=knn.test.pred[1:115]
+```
+
+```{r echo=FALSE}
+as.table(confusionMatrix(data = as.factor(knn.test.pred), reference = liver$is_patient[-rowTrain], 
+                         positive = "nonliver"))
+```
+
+The significance of KNN model is that it best fits for the low bias and high variance for large training data sets. After plotting ggplot, we can use k=9. So using K = 9, the accuracy became 31.3%, which is pretty low. The sensitivity is 69.70% and specificity is 15.85%.
+
+### 5. NB
+```{r warning=FALSE, echo=FALSE}
+ctrl = trainControl(method = "repeatedcv", repeats = 5, summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),  fL = 1, adjust = seq(2, 5, by = .2))
+liver.nb = train(x = liver[rowTrain, c(2,4:6,8:10)], y = liver$is_patient[rowTrain], 
+                        method = "nb", tuneGrid = nbGrid, metric = "ROC", trControl = ctrl)
+plot(liver.nb) #PLOT4
+```
+
+```{r warning=FALSE, echo=FALSE}
+#confusion matrix
+nb.test.pred.prob = predict(liver.nb, newdata = liver[-rowTrain,], type = "prob")
+nb.test.pred = rep("liver", length(nb.test.pred.prob))
+nb.test.pred[nb.test.pred.prob>0.5] = "nonliver"
+nb.test.pred = nb.test.pred[1:115]
+
+as.table(confusionMatrix(data = as.factor(nb.test.pred), reference = liver$is_patient[-rowTrain], 
+                        positive = "nonliver"))
+```
+
+One of the reason why we use NB is the assumption of independence among predictors;the predictors are independent of each other given the class. Therefore, if the assumption holds,  If the NB conditional holds, NB will converge quicker than other classification algorithms, such as logistic regression, so we need less training data. Even though the assumption is not held, it is still easy to build the model. Since `liver` data is not linear and has weak correlation, it has a high accuracy of 72.17%.
+
+
+One of the limitation of modeling all 5 model is that the sample size was not big enough for training data and thus skewed to one side. Since there was 416 liver patients and 167 non-liver patients, there could be misleading results of specificity and sensitivity. Also, I had to do some transformation on certain models for the assumption of the normality. Therefore, comparing each model is not in the same baseline. 
+
+# Conclusions
+Now, we will compare between 5 models;
+```{r warning=FALSE, echo=FALSE, message=FALSE, out.width="100%"}
+ctrl = trainControl(method = "repeatedcv", repeats = 5, summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+set.seed(1)
+liver.glm = train(x = liver[rowTrain, c(2,4:6,8:10)], y = liver$is_patient[rowTrain], 
+                  method = "glm",metric = "ROC", trControl = ctrl)
+liver.lda = train(x = log(liver[rowTrain, c(2,4:6,8:10)]), y = liver$is_patient[rowTrain], 
+                  method = "lda", metric = "ROC", trControl = ctrl)
+liver.qda = train(x = log(liver[rowTrain, c(2,4:6,8:10)]), y = liver$is_patient[rowTrain], 
+                  method = "qda", metric = "ROC", trControl = ctrl)
+
+glm.pred = predict(liver.glm, newdata = liver[-rowTrain,], type = "prob")[,2]
+lda.pred = predict(liver.lda, newdata = liver[-rowTrain,], type = "prob")[,2]
+qda.pred = predict(liver.qda, newdata = liver[-rowTrain,], type = "prob")[,2]
+knn.pred = predict(liver.knn, newdata = liver[-rowTrain,], type = "prob")[,2] 
+nb.pred = predict(liver.nb, newdata = liver[-rowTrain,], type = "prob")[,2] 
+
+
+roc.glm = roc(liver$is_patient[-rowTrain], glm.pred)
+roc.lda = roc(liver$is_patient[-rowTrain], lda.pred)
+roc.qda = roc(liver$is_patient[-rowTrain], qda.pred)
+roc.knn = roc(liver$is_patient[-rowTrain], knn.pred)
+roc.nb = roc(liver$is_patient[-rowTrain], nb.pred)
+
+
+auc = c(roc.lda$auc[1], roc.qda$auc[1], roc.glm$auc[1], roc.knn$auc[1], roc.nb$auc[1])
+
+plot(roc.lda, legacy.axes = TRUE) #PLOT4
+plot(roc.qda, col = 2, add = TRUE)
+plot(roc.glm, col = 3, add = TRUE)
+plot(roc.knn, col = 4, add = TRUE)
+plot(roc.nb, col = 5, add = TRUE)
+
+
+modelNames = c("LDA","QDA","GLM","KNN","NB")
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
+       col = 1:5, lwd = 1)
+```
+
+Looking at the AUC of 5 models, we can conclude that logistic regression and NB best fits the model with AUC 0.72 and 0.722. But for medical tests, specificity is more significant than the sensitivity because it is more important to measure to correctly generate a negative result for people who don't have any conditions. Since lung diseases is not a rare disease, it is better for people know regardless of their conditions. Therefore, between NB and logistic regression, we can say that logistic regression fits better. My prediction was correct because it was the first choice I wanted to model.
+
+
+ 
