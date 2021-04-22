@@ -1,0 +1,280 @@
+---
+title: "P8106 Midterm Project"
+author: Na Yun Cho
+output: pdf_document
+---
+```{r}
+# Load libraries
+library(tidyverse) 
+library(dplyr)
+library(ISLR) 
+library(janitor) 
+library(AppliedPredictiveModeling) 
+library(caret) 
+library(corrplot) 
+library(pROC) 
+library(MASS) 
+library(readxl)
+library(glmnet)
+library(mlbench)
+library(pdp)
+library(vip)
+library(klaR)
+```
+
+## Import & Tidy Data
+```{r}
+# Import data
+liver_df = read_excel("./data/liver.xlsx") %>%
+  dplyr::select(-gender) %>%
+  mutate(outcome = ifelse(is_patient == 1, "yes", "no"), outcome = as.factor(outcome)) %>%
+  dplyr::select(-is_patient) %>%
+  clean_names %>%
+  rename(aspartate_aminotransferase = sgpt, alamine_aminotransferase = sgot) %>%
+  drop_na 
+```
+
+## Exploratory Analysis
+```{r}
+# Feature plots 
+theme1 <- transparentTheme(trans = .4)
+trellis.par.set(theme1)
+featurePlot(x = liver_df[, 1:9], 
+            y = liver_df$outcome,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 2))
+
+liver_df1 =
+  liver_df %>%
+  mutate(logtot_bilirubin = log(tot_bilirubin) +1,
+         logdirect_bilirubin = log(direct_bilirubin) +1,
+         logtot_proteins = log(tot_proteins) +1,
+         logalbumin = log(albumin) +1, 
+         logag_ratio = log(ag_ratio) +1,
+         logage = log(age) +1, 
+         logaspartate = log(aspartate_aminotransferase) +1,
+         logalamine = log(alamine_aminotransferase ) +1,
+         logalkphos = log(alkphos) +1) %>%
+  dplyr::select(logage, logtot_bilirubin, logdirect_bilirubin, logtot_proteins, logalbumin, logag_ratio, logaspartate, logalamine, logalkphos,outcome)
+  
+
+theme1 <- transparentTheme(trans = .4)
+trellis.par.set(theme1)
+featurePlot(x = liver_df1[, 1:9], 
+            y = liver_df1$outcome,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 2))
+
+# Correlation plot
+corrplot(cor(liver_df[,-10]), tl.srt = 45, order = 'hclust', type = 'upper')
+
+
+table(liver_df$outcome)
+```
+
+## Create Training and Test Datasets
+```{r}
+set.seed(10)
+dim(liver_df1)
+rowTrain <- createDataPartition(y = liver_df1$outcome,
+                                p = 0.8,
+                                list = FALSE)
+```
+
+## Logistic Regression
+```{r}
+#Fit Logistic Regression Model with all predictors 
+glm.fit <- glm(outcome ~ ., data = liver_df1,
+               subset = rowTrain,
+               family = binomial(link = "logit"))
+summary(glm.fit)
+
+# Confusion Matrix 
+test.pred.prob <- predict(glm.fit, newdata = liver_df1[-rowTrain,], type = "response")
+test.pred <- rep("no", length(test.pred.prob)) 
+test.pred[test.pred.prob > 0.5] <- "yes"
+confusionMatrix(data = as.factor(test.pred), reference = liver_df1$outcome[-rowTrain],
+                positive = "yes")
+# ROC Curve
+roc.glm <- roc(liver_df1$outcome[-rowTrain], test.pred.prob) 
+plot(roc.glm, legacy.axes = TRUE, print.auc = TRUE) 
+plot(smooth(roc.glm), col = 4, add = TRUE)
+
+# Fit a logistic regression with CARET 
+set.seed(10)
+ctrl <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+model.glm <- train(x = liver_df1[rowTrain,1:9],
+                   y = liver_df1$outcome[rowTrain],
+                   method = "glm",
+                   metric = "ROC",
+                   trControl = ctrl)
+vip(model.glm)
+```
+
+
+## Regression with selected predictors
+```{r}
+liver_trainselected = liver_df1[rowTrain, c(1, 2, 4, 5, 7, 8, 9)]
+liver_trainselected_whole = liver_df1[rowTrain, c(1, 2, 4, 5, 7, 8, 9, 10)]
+liver_testselected_df = liver_df1 %>% dplyr::select("logaspartate", "logalamine", "logalbumin", "logage", "logalkphos", "logtot_bilirubin", "logtot_proteins", "outcome")
+
+
+model.glm2 <- train(x = liver_trainselected, 
+                    y = liver_df1$outcome[rowTrain],
+                    method = 'glm', 
+                    metric = 'ROC',
+                    trControl = ctrl)
+# Confusion Matrix
+test.pred.prob2 <- predict(model.glm2, newdata = liver_testselected_df[-rowTrain,], type = "prob")[, 2]
+test.pred1 <- rep("no", length(test.pred.prob2)) 
+test.pred1[test.pred.prob2 > 0.5] <- "yes"
+confusionMatrix(data = as.factor(test.pred1), reference = liver_df1$outcome[-rowTrain],
+                positive = "yes")
+
+# ROC Curve
+roc.glm <- roc(liver_df1$outcome[-rowTrain], test.pred.prob2) 
+plot(roc.glm, legacy.axes = TRUE, print.auc = TRUE) 
+plot(smooth(roc.glm), col = 4, add = TRUE)
+```
+
+## KNN 
+```{r}
+set.seed(10)
+ctrl <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+model.knn <- train(x = liver_trainselected,
+                   y = liver_df1$outcome[rowTrain],
+                   method = "knn",
+                   preProcess = c("center", "scale"), 
+                   tuneGrid = data.frame(k = seq(1, 200, by = 5)),  
+                   trControl = ctrl)
+
+model.knn$bestTune
+pred_knn = predict(model.knn, newdata = liver_testselected_df[-rowTrain,], type = 'prob')
+roc_knn <- roc(liver_df1$outcome[-rowTrain], pred_knn[,2])
+plot.roc(roc_knn, legacy.axes = TRUE, print.auc = TRUE)
+```
+
+## LDA
+```{r}
+set.seed(10)
+lda.fit <- lda(outcome~., 
+               data = liver_trainselected_whole)
+
+
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+set.seed(10)
+model.lda <- train(x = liver_trainselected,
+                   y = liver_df1$outcome[rowTrain],
+                   method = "lda",
+                   metric = "ROC",
+                   trControl = ctrl)
+lda.pred <- predict(lda.fit, newdata = liver_testselected_df[-rowTrain,])
+roc.lda <- roc(liver_testselected_df[-rowTrain,]$outcome, lda.pred$posterior[,2])
+plot(roc.lda, legacy.axes = TRUE, print.auc = TRUE)
+
+```
+
+
+## QDA
+```{r}
+set.seed(10)
+qda.fit <- qda(outcome~., 
+               data = liver_trainselected_whole)
+
+set.seed(10)
+model.qda <- train(x = liver_trainselected,
+                   y = liver_df1$outcome[rowTrain],
+                   method = "qda",
+                   metric = "ROC",
+                   trControl = ctrl)
+qda.pred <- predict(qda.fit, newdata = liver_testselected_df[-rowTrain,])
+roc.qda <- roc(liver_testselected_df[-rowTrain,]$outcome, qda.pred$posterior[,2])
+plot(roc.qda, legacy.axes = TRUE, print.auc = TRUE)
+
+
+auc <- c(roc.lda$auc[1], roc.qda$auc[1])
+```
+
+## Naive Bayes 
+```{r}
+nbGrid <- expand.grid(usekernel = c(FALSE,TRUE), 
+                      fL = 1,
+                      adjust = seq(.2, 3, by = .2))
+model.nb <- train(x = liver_trainselected,
+                  y = liver_df1$outcome[rowTrain],
+                  method = "nb",
+                  tuneGrid = nbGrid,
+                  metric = "ROC",
+                  trControl = ctrl)
+plot(model.nb)
+```
+
+```{r}
+res <- resamples(list(LDA = model.lda, QDA = model.qda, NB = model.nb, GLM = model.glm2, KNN = model.knn))
+summary(res)
+bwplot(res, metric = "ROC")
+```
+
+
+## Let's look at the test set performance 
+```{r}
+lda.pred <- predict(model.lda, newdata = liver_testselected_df[-rowTrain,], type = "prob")[,2]
+nb.pred <- predict(model.nb, newdata = liver_testselected_df[-rowTrain,], type = "prob")[,2]
+qda.pred <- predict(model.qda, newdata = liver_testselected_df[-rowTrain,], type = "prob")[,2]
+glm.pred <- predict(model.glm2, newdata = liver_testselected_df[-rowTrain,], type = "prob")[,2]
+knn.pred <- predict(model.knn, newdata = liver_testselected_df[-rowTrain,], type = "prob")[,2]
+
+
+liver_end =  read_excel("./data/liver.xlsx") %>%
+  dplyr::select(-gender) %>%
+  mutate(outcome = is_patient, outcome = as.factor(outcome)) %>%
+  dplyr::select(-is_patient) %>%
+  drop_na %>%
+  rename(aspartate_aminotransferase = sgpt, alamine_aminotransferase = sgot) %>%
+  mutate(logtot_bilirubin = log(tot_bilirubin) +1,
+         logdirect_bilirubin = log(direct_bilirubin) +1,
+         logtot_proteins = log(tot_proteins) +1,
+         logalbumin = log(albumin) +1, 
+         logag_ratio = log(ag_ratio) +1,
+         logage = log(age) +1, 
+         logaspartate = log(aspartate_aminotransferase) +1,
+         logalamine = log(alamine_aminotransferase ) +1,
+         logalkphos = log(alkphos) +1) %>%
+  dplyr::select(logage, logtot_bilirubin, logdirect_bilirubin, logtot_proteins, logalbumin, logag_ratio, logaspartate, logalamine, logalkphos,outcome)
+
+
+roc.lda <- roc(liver_df1$outcome[-rowTrain], lda.pred)
+roc.nb <- roc(liver_df1$outcome[-rowTrain], nb.pred)
+roc.qda <- roc(liver_df1$outcome[-rowTrain], qda.pred)
+roc.knn <- roc(liver_df1$outcome[-rowTrain], knn.pred)
+roc.glm <- roc(liver_df1$outcome[-rowTrain], glm.pred)
+
+
+auc <- c(roc.lda$auc[1], roc.qda$auc[1], roc.nb$auc[1], roc.knn$auc[1], roc.glm$auc[1])
+
+plot(roc.lda, legacy.axes = TRUE)
+plot(roc.qda, col = 2, add = TRUE)
+plot(roc.nb, col = 3, add = TRUE)
+plot(roc.knn, col = 4, add = TRUE)
+plot(roc.glm, col = 5, add = TRUE)
+
+modelNames <- c("lda","qda","nb", "knn", "glm")
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,2)),
+       col = 1:5, lwd = 2)
+```
+
+
+
+
