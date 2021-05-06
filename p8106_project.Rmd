@@ -32,41 +32,48 @@ liver_df = read_excel("./data/liver.xlsx") %>%
     aspartate_aminotransferase = sgpt, 
     alamine_aminotransferase = sgot, 
     albumin_globulin_ratio = ag_ratio, 
-    alkaline_phospate = alkphos) %>%
+    alkaline_phosphate = alkphos) %>%
   drop_na 
 
-liver_df$gender=factor(x=liver_df$gender,levels = c('Female','Male'),labels=c(0,1)) 
+liver_df$gender=factor(x=liver_df$gender,levels = c('Female','Male'),labels=c(0, 1))
 liver_df$gender = as.double(liver_df$gender) 
+# female = '1', male = '2'
 ```
 
+
+# Exploratory Data Analysis
 ```{r}
 # Feature plots 
 theme1 <- transparentTheme(trans = .4)
 trellis.par.set(theme1)
-featurePlot(x = liver_df[, 1:9], 
+featurePlot(x = liver_df[, 1:10], 
             y = liver_df$outcome,
             scales = list(x = list(relation = "free"), 
                           y = list(relation = "free")),
             plot = "density", pch = "|", 
             auto.key = list(columns = 2))
 
+# dataset with all the log-transformed predictor variables 
 liver_df1 =
   liver_df %>%
   mutate(logtot_bilirubin = log(tot_bilirubin) +1,
          logdirect_bilirubin = log(direct_bilirubin) +1,
          logtot_proteins = log(tot_proteins) +1,
          logalbumin = log(albumin) +1, 
-         logag_ratio = log(ag_ratio) +1,
+         loggender = log(gender) +1,
+         logalbumin_globulin_ratio = log(albumin_globulin_ratio) +1,
          logage = log(age) +1, 
-         logaspartate = log(aspartate_aminotransferase) +1,
-         logalamine = log(alamine_aminotransferase ) +1,
-         logalkphos = log(alkphos) +1) %>%
-  dplyr::select(logage, logtot_bilirubin, logdirect_bilirubin, logtot_proteins, logalbumin, logag_ratio, logaspartate, logalamine, logalkphos,outcome)
+         logaspartate_aminotransferase = log(aspartate_aminotransferase) +1,
+         logalamine_transferase = log(alamine_aminotransferase ) +1,
+         logalkaline_phosphate = log(alkaline_phosphate) +1) %>% 
+         dplyr::select(logage, loggender, logtot_bilirubin, logdirect_bilirubin, logtot_proteins, logalbumin,
+                           logalbumin_globulin_ratio, logaspartate_aminotransferase, logalamine_transferase,
+                           logalkaline_phosphate, outcome)
   
 
 theme1 <- transparentTheme(trans = .4)
 trellis.par.set(theme1)
-featurePlot(x = liver_df1[, 1:9], 
+featurePlot(x = liver_df1[, 1:10], 
             y = liver_df1$outcome,
             scales = list(x = list(relation = "free"), 
                           y = list(relation = "free")),
@@ -74,13 +81,13 @@ featurePlot(x = liver_df1[, 1:9],
             auto.key = list(columns = 2))
 
 # Correlation plot
-corrplot(cor(liver_df[,-10]), tl.srt = 45, order = 'hclust', type = 'upper')
+corrplot(cor(liver_df[,-11]), tl.srt = 45, order = 'hclust', type = 'upper')
 
 
 table(liver_df$outcome)
 ```
 
-
+# Data Partition
 ```{r}
 #Create Training and Test Datasets
 set.seed(10)
@@ -92,7 +99,7 @@ rowTrain <- createDataPartition(y = liver_df1$outcome,
 
 
 
-## Logistic Regression 
+# Logistic Regression 
 ```{r}
 #Fit Logistic Regression Model with all predictors 
 glm.fit <- glm(outcome ~ ., data = liver_df1,
@@ -116,7 +123,7 @@ set.seed(10)
 ctrl <- trainControl(method = "repeatedcv", repeats = 10,
                      summaryFunction = twoClassSummary,
                      classProbs = TRUE)
-model.glm <- train(x = liver_df1[rowTrain,1:9],
+model.glm <- train(x = liver_df1[rowTrain,1:10],
                    y = liver_df1$outcome[rowTrain],
                    method = "glm",
                    preProcess = c("center", "scale"), 
@@ -126,7 +133,7 @@ model.glm <- train(x = liver_df1[rowTrain,1:9],
 
 
 
-## Regularized logistic regression
+# Regularized logistic regression
 ```{r}
 ctrl <- trainControl(method = "repeatedcv",
                     repeats = 5,
@@ -136,7 +143,7 @@ ctrl <- trainControl(method = "repeatedcv",
 set.seed(10)
 glmnGrid <- expand.grid(.alpha = seq(0,1,length =6),
                        .lambda = exp(seq(-6,0,length =20)))
-model.glmn <- train(x=liver_df1[rowTrain,1:9],
+model.glmn <- train(x=liver_df1[rowTrain,1:10],
                    y=liver_df1$outcome[rowTrain],
                    method ="glmnet",
                    #preProcess = c("center", "scale"), 
