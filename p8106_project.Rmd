@@ -1,5 +1,155 @@
 ---
-title: "p8106_project"
+title: "Predicting Diagnosis of Liver Disease "
 output: pdf_document
 ---
+
+```{r}
+# Load libraries 
+library(tidyverse) 
+library(dplyr)
+library(ISLR) 
+library(janitor) 
+library(AppliedPredictiveModeling) 
+library(caret) 
+library(corrplot) 
+library(pROC) 
+library(MASS) 
+library(readxl)
+library(glmnet)
+library(mlbench)
+library(pdp)
+library(vip)
+library(klaR)
+```
+
+# Import data
+```{r}
+liver_df = read_excel("./data/liver.xlsx") %>%
+  mutate(outcome = ifelse(is_patient == 1, "yes", "no"), outcome = as.factor(outcome)) %>%
+  dplyr::select(-is_patient) %>%
+  clean_names %>%
+  rename(
+    aspartate_aminotransferase = sgpt, 
+    alamine_aminotransferase = sgot, 
+    albumin_globulin_ratio = ag_ratio, 
+    alkaline_phospate = alkphos) %>%
+  drop_na 
+
+liver_df$gender=factor(x=liver_df$gender,levels = c('Female','Male'),labels=c(0,1)) 
+liver_df$gender = as.double(liver_df$gender) 
+```
+
+```{r}
+# Feature plots 
+theme1 <- transparentTheme(trans = .4)
+trellis.par.set(theme1)
+featurePlot(x = liver_df[, 1:9], 
+            y = liver_df$outcome,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 2))
+
+liver_df1 =
+  liver_df %>%
+  mutate(logtot_bilirubin = log(tot_bilirubin) +1,
+         logdirect_bilirubin = log(direct_bilirubin) +1,
+         logtot_proteins = log(tot_proteins) +1,
+         logalbumin = log(albumin) +1, 
+         logag_ratio = log(ag_ratio) +1,
+         logage = log(age) +1, 
+         logaspartate = log(aspartate_aminotransferase) +1,
+         logalamine = log(alamine_aminotransferase ) +1,
+         logalkphos = log(alkphos) +1) %>%
+  dplyr::select(logage, logtot_bilirubin, logdirect_bilirubin, logtot_proteins, logalbumin, logag_ratio, logaspartate, logalamine, logalkphos,outcome)
+  
+
+theme1 <- transparentTheme(trans = .4)
+trellis.par.set(theme1)
+featurePlot(x = liver_df1[, 1:9], 
+            y = liver_df1$outcome,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 2))
+
+# Correlation plot
+corrplot(cor(liver_df[,-10]), tl.srt = 45, order = 'hclust', type = 'upper')
+
+
+table(liver_df$outcome)
+```
+
+
+```{r}
+#Create Training and Test Datasets
+set.seed(10)
+dim(liver_df1)
+rowTrain <- createDataPartition(y = liver_df1$outcome,
+                                p = 0.8,
+                                list = FALSE)
+```
+
+
+
+## Logistic Regression 
+```{r}
+#Fit Logistic Regression Model with all predictors 
+glm.fit <- glm(outcome ~ ., data = liver_df1,
+               subset = rowTrain,
+               family = binomial(link = "logit"))
+summary(glm.fit)
+
+# Confusion Matrix 
+test.pred.prob <- predict(glm.fit, newdata = liver_df1[-rowTrain,], type = "response")
+test.pred <- rep("no", length(test.pred.prob)) 
+test.pred[test.pred.prob > 0.5] <- "yes"
+confusionMatrix(data = as.factor(test.pred), reference = liver_df1$outcome[-rowTrain],
+                positive = "yes")
+# ROC Curve
+roc.glm <- roc(liver_df1$outcome[-rowTrain], test.pred.prob) 
+plot(roc.glm, legacy.axes = TRUE, print.auc = TRUE) 
+plot(smooth(roc.glm), col = 4, add = TRUE)
+
+# Fit a logistic regression with CARET 
+set.seed(10)
+ctrl <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+model.glm <- train(x = liver_df1[rowTrain,1:9],
+                   y = liver_df1$outcome[rowTrain],
+                   method = "glm",
+                   preProcess = c("center", "scale"), 
+                   metric = "ROC",
+                   trControl = ctrl)
+```
+
+
+
+## Regularized logistic regression
+```{r}
+ctrl <- trainControl(method = "repeatedcv",
+                    repeats = 5,
+                    summaryFunction = twoClassSummary,
+                    classProbs = TRUE)
+
+set.seed(10)
+glmnGrid <- expand.grid(.alpha = seq(0,1,length =6),
+                       .lambda = exp(seq(-6,0,length =20)))
+model.glmn <- train(x=liver_df1[rowTrain,1:9],
+                   y=liver_df1$outcome[rowTrain],
+                   method ="glmnet",
+                   #preProcess = c("center", "scale"), 
+                   tuneGrid =glmnGrid,
+                   metric ="ROC",
+                   trControl =ctrl)
+
+
+ggplot(model.glmn,xTrans = function(x)log(x), highlight = TRUE)
+
+max(model.glmn$result$ROC)
+model.glmn$bestTune # alpha of 0 indicates a ridge regression. 
+
+coef(model.glmn$finalModel, s = model.glmn$bestTune$lambda)
+```
 

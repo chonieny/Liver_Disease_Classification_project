@@ -118,6 +118,8 @@ vip(model.glm)
 ```
 
 
+
+
 ## Regression with selected predictors
 ```{r}
 liver_trainselected = liver_df1[rowTrain, c(1, 2, 4, 5, 7, 8, 9)]
