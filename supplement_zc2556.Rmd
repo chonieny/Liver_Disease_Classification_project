@@ -1,0 +1,421 @@
+---
+title: "Supplement-zc2556"
+author: "Zhe Chen"
+date: "2021/03/30"
+output: pdf_document
+---
+
+```{r, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(caret)
+library(ISLR)
+library(pdp)
+library(AppliedPredictiveModeling)
+library(pROC)
+library(vip)
+
+set.seed(621)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(
+  theme_minimal()+
+  theme(legend.position = "bottom")
+)
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continous.fill = "viridis"
+)
+
+scale_color_discrete = scale_colour_viridis_d()
+scale_fill_discrete = scale_fill_viridis_d
+
+```
+
+## Data Preparation
+
+```{r}
+liver.df = read.csv("./indian_liver_patient.csv") %>%
+  mutate(
+    status  = ifelse(Dataset == 1, "Yes", "No"),
+    status = as.factor(status),
+  ) %>%
+  rename(
+    tot_bili = Total_Bilirubin,
+    dir_bili = Direct_Bilirubin,
+    alk_phosph = Alkaline_Phosphotase,
+    ala_aminotrans = Alamine_Aminotransferase,
+    asp_aminotrans = Aspartate_Aminotransferase,
+    tot_pro = Total_Protiens,
+    alb_glob = Albumin_and_Globulin_Ratio
+  )%>%
+  na.omit() %>%
+  dplyr::select(-Dataset)
+
+set.seed(621)
+liver.t = createDataPartition(y = liver.df$status,
+                                  p = 0.8,
+                                  list = FALSE)
+liver.train = liver.df[liver.t, ]
+liver.test = liver.df[-liver.t, ]
+```
+
+## Exploratory Plot 
+
+```{r}
+#exploratory plot to check the assumptions
+theme1 <- transparentTheme(trans = .4)
+trellis.par.set(theme1)
+featurePlot(x = liver.df[, c(1,3:10)],
+  y = liver.df$status,
+  scales = list(x = list(relation = "free"),
+                y = list(relation = "free")),
+  plot = "density", pch = "|",
+  auto.key = list(columns = 2))
+```
+
+```{r}
+#plot for gender
+ggplot(liver.df, aes(factor(Gender), fill = status))+
+  geom_bar()
+```
+
+
+```{r}
+#test for gender differences
+fm.trail = liver.df %>% filter(Gender == "Female") %>%
+  nrow()
+fm.case = liver.df %>% filter(Gender == "Female" & status == "Yes") %>%
+  nrow()
+m.trail = liver.df %>% filter(Gender == "Male") %>%
+  nrow()
+m.case = liver.df %>% filter(Gender == "Male" & status == "Yes") %>%
+  nrow()
+prop.test(x=c(fm.case,m.case), n=c(fm.trail, m.trail),
+          conf.level=0.95)
+```
+
+
+## Transformation
+
+```{r}
+preprocesspred <- preProcess(liver.df[,3:7], method=c("BoxCox"))
+print(preprocesspred)
+liver.df.boxcox <- predict(preprocesspred, liver.df)
+liver.train.boxcox <- predict(preprocesspred, liver.train)
+liver.test.boxcox <- predict(preprocesspred, liver.test)
+summary(liver.train.boxcox)
+```
+
+```{r}
+featurePlot(x = liver.train.boxcox[, c(1,3:10)],
+  y = liver.train.boxcox$status,
+  scales = list(x = list(relation = "free"),
+                y = list(relation = "free")),
+  plot = "density", pch = "|",
+  auto.key = list(columns = 2))
+```
+
+## Model Building  
+### Feature Selection  
+
+```{r}
+log.fit = glm(status ~ ., data = liver.train.boxcox,family = binomial(link = "logit"))
+summary(log.fit)
+```
+
+```{r}
+#logistic regression
+set.seed(621)
+ctrl <-trainControl(method = "repeatedcv", repeats = 10, summaryFunction = twoClassSummary,classProbs = TRUE)
+glm.fit <- train(x = liver.train.boxcox[,1:10],
+                 y = liver.train.boxcox$status,
+                 method = "glm",
+                 metric = "ROC",
+                 trControl = ctrl)
+glm.fit
+vip(glm.fit)
+```
+
+```{r}
+#prevalence
+preval = nrow(filter(liver.df, status == "Yes"))/nrow(filter(liver.df, status == "No"))
+preval.test = nrow(filter(liver.train, status == "Yes"))/nrow(filter(liver.train, status == "No"))
+preval.train = nrow(filter(liver.test, status == "Yes"))/nrow(filter(liver.test, status == "No"))
+```
+
+
+```{r}
+glm.fit2 <- train(x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+                 y = liver.train.boxcox$status,
+                 method = "glm",
+                 metric = "ROC",
+                 trControl = ctrl)
+glm.fit2
+```
+
+```{r}
+anova(glm.fit2$finalModel, glm.fit$finalModel, test = "LRT")
+```
+
+
+```{r}
+#ROC for logistics
+test.pred.prob.glm2 <- predict(glm.fit2, newdata = liver.test.boxcox ,type = "prob")[,2]
+roc.glm2 <- roc(liver.test.boxcox$status, test.pred.prob.glm2)
+plot(roc.glm2, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(roc.glm2), col = 4, add = TRUE)
+```
+
+
+### LDA and QDA
+
+```{r}
+#LDA
+set.seed(621)
+model.lda <-train(
+  x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+  y = liver.train.boxcox$status,
+  method = "lda",
+  metric = "ROC",
+  trControl = ctrl)
+model.lda
+```
+
+```{r}
+#QDA
+set.seed(621)
+model.qda <-train(x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+                  y = liver.train.boxcox$status,
+                  method = "qda",
+                  metric = "ROC",
+                  trControl = ctrl)
+model.qda
+```
+
+
+### KNN
+
+```{r}
+set.seed(621)
+model.knn <-train(x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+                  y = liver.train.boxcox$status,
+                  method = "knn",
+                  metric = "ROC",
+                  trControl = ctrl,
+                  tuneGrid = data.frame(k=1:12))
+model.knn
+```
+
+### Naive Bey
+
+```{r}
+nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
+                      fL = 1,
+                      adjust = seq(1, 4, by = .2))
+
+model.nb <- train(x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+                  y = liver.train.boxcox$status,
+                  method = "nb",
+                  tuneGrid = nbGrid,
+                  metric = "ROC",
+                  trControl = ctrl)
+
+plot(model.nb)
+```
+
+## Box Plot of Resamples
+
+```{r}
+res = resamples(list(LDA = model.lda, QDA = model.qda, KNN = model.knn, glm = glm.fit2, NB = model.nb))
+summary(res)
+bwplot(res, metric = "ROC")
+bwplot(res, metric = "Sens")
+bwplot(res, metric = "Spec")
+```
+
+
+
+## ROC Plot
+
+```{r}
+lda.pred <- predict(model.lda, newdata = liver.test.boxcox, type = "prob")[,2]
+knn.pred <- predict(model.knn, newdata = liver.test.boxcox, type = "prob")[,2]
+qda.pred <- predict(model.qda, newdata = liver.test.boxcox, type = "prob")[,2]
+nb.pred <- predict(model.nb, newdata = liver.test.boxcox, type = "prob")[,2]
+
+roc.lda <- roc(liver.test.boxcox$status, lda.pred)
+roc.knn <- roc(liver.test.boxcox$status, knn.pred)
+roc.qda <- roc(liver.test.boxcox$status, qda.pred)
+roc.nb <- roc(liver.test.boxcox$status, nb.pred)
+
+auc <- c(roc.lda$auc[1], roc.qda$auc[1], roc.knn$auc[1], roc.glm2$auc[1], roc.nb$auc[1])
+
+plot(roc.lda, legacy.axes = TRUE)
+plot(roc.qda, col = 2, add = TRUE)
+plot(roc.knn, col = 3, add = TRUE)
+plot(roc.glm2, col = 4, add = TRUE)
+plot(roc.nb, col = 5, add = TRUE)
+
+modelNames <- c("lda","qda","knn","logistics", "Naive Bayes")
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,2)),
+col = 1:5, lwd = 2)
+```
+
+This shows overfitting for KNN and QDA. Thus, new models needed to be build for KNN and QDA. Now, AUC tested for KNN model and QDA model with different 
+cross validation parameters.
+
+```{r}
+#knn
+set.seed(126)
+model.knn.new <-train(x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+                  y = liver.train.boxcox$status,
+                  method = "knn",
+                  metric = "ROC",
+                  trControl = trainControl(method = "repeatedcv", repeats = 15, summaryFunction = twoClassSummary,classProbs = TRUE))
+
+test.pred.prob.knn.new <- predict(model.knn.new, newdata = liver.test.boxcox ,type = "prob")[,2]
+roc.knn.new <- roc(liver.test.boxcox$status, test.pred.prob.knn.new)
+plot(roc.knn.new, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(roc.knn.new), col = 4, add = TRUE)
+```
+
+```{r}
+#lda
+set.seed(2)
+model.lda.new <-train(x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+                  y = liver.train.boxcox$status,
+                  method = "lda",
+                  metric = "ROC",
+                  trControl = trainControl(method = "repeatedcv", repeats = 15, summaryFunction = twoClassSummary,classProbs = TRUE))
+
+test.pred.prob.lda.new <- predict(model.lda.new, newdata = liver.test.boxcox ,type = "prob")[,2]
+roc.lda.new <- roc(liver.test.boxcox$status, test.pred.prob.lda.new)
+plot(roc.lda.new, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(roc.lda.new), col = 4, add = TRUE)
+```
+
+```{r}
+#qda
+set.seed(2)
+model.qda.new <-train(x = liver.train.boxcox[,c(8,9,6,1,10,5)],
+                  y = liver.train.boxcox$status,
+                  method = "qda",
+                  metric = "ROC",
+                  trControl = trainControl(method = "repeatedcv", repeats = 15, summaryFunction = twoClassSummary,classProbs = TRUE))
+
+test.pred.prob.qda.new <- predict(model.qda.new, newdata = liver.test.boxcox ,type = "prob")[,2]
+roc.qda.new <- roc(liver.test.boxcox$status, test.pred.prob.qda.new)
+plot(roc.qda.new, legacy.axes = TRUE, print.auc = TRUE)
+```
+
+
+```{r}
+#qda without boxcox tranformation 
+set.seed(2)
+model.qda.org <-train(x = liver.train[,c(8,9,6,1,10,5)],
+                  y = liver.train$status,
+                  method = "qda",
+                  metric = "ROC",
+                  trControl = trainControl(method = "repeatedcv", repeats = 10, summaryFunction = twoClassSummary,classProbs = TRUE))
+
+test.pred.prob.qda.org <- predict(model.qda.org, newdata = liver.test ,type = "prob")[,2]
+roc.qda.org <- roc(liver.test$status, test.pred.prob.qda.org)
+plot(roc.qda.org, legacy.axes = TRUE, print.auc = TRUE)
+```
+
+## Confusion Matrix
+
+```{r}
+#confusion matrix for logistics regression with all features
+test.pred.prob <- predict(log.fit, newdata = liver.test.boxcox ,type = "response")
+test.pred <- rep("No", length(test.pred.prob))
+test.pred[test.pred.prob>0.5] <- "Yes"
+CM.log = confusionMatrix(data = as.factor(test.pred),
+  reference = liver.test.boxcox$status,
+  positive = "Yes",
+  prevalence = preval)
+CM.log
+```
+
+```{r}
+#confusion matrix for logistics regression selected features
+test.pred.glm2 <- rep("No", length(test.pred.prob.glm2))
+test.pred.glm2[test.pred.prob.glm2>0.5] <- "Yes"
+CM.log.fea = confusionMatrix(data = as.factor(test.pred.glm2),
+  reference = liver.test.boxcox$status,
+  positive = "Yes",
+  prevalence = preval)
+CM.log.fea
+```
+
+```{r}
+#confusion matrix for LDA
+test.pred.lda <- rep("No", length(lda.pred))
+test.pred.lda[lda.pred>0.5] <- "Yes"
+CM.lda = confusionMatrix(data = as.factor(test.pred.lda),
+  reference = liver.test.boxcox$status,
+  positive = "Yes",
+  prevalence = preval)
+CM.lda
+```
+
+```{r}
+#confusion matrix for QDA
+test.pred.qda <- rep("No", length(qda.pred))
+test.pred.qda[qda.pred>0.5] <- "Yes"
+CM.qda = confusionMatrix(data = as.factor(test.pred.qda),
+  reference = liver.test.boxcox$status,
+  positive = "Yes",
+  prevalence = preval)
+CM.qda
+```
+
+```{r}
+#confusion matrix for knn
+CM.pred.knn <- rep("No", length(knn.pred))
+CM.pred.knn[knn.pred>0.5] <- "Yes"
+CM.knn = confusionMatrix(data = as.factor(CM.pred.knn),
+  reference = liver.test.boxcox$status,
+  positive = "Yes",
+  prevalence = preval)
+CM.knn
+```
+
+```{r}
+#confusion matrix for Naive Bayes
+test.pred.nb <- rep("No", length(nb.pred))
+test.pred.nb[nb.pred>0.5] <- "Yes"
+CM.nb = confusionMatrix(data = as.factor(test.pred.nb),
+  reference = liver.test.boxcox$status,
+  positive = "Yes",
+  prevalence = preval)
+CM.nb
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
