@@ -160,3 +160,19 @@ model.glmn$bestTune # alpha of 0 indicates a ridge regression.
 coef(model.glmn$finalModel, s = model.glmn$bestTune$lambda)
 ```
 
+
+# MARS
+```{r}
+set.seed(10)
+model.mars <- train(x = liver_df1[rowTrain,1:10],
+                    y = liver_df1$outcome[rowTrain],
+                    method = "earth",
+                    tuneGrid = expand.grid(degree = 1:3, nprune = 2:20), 
+                    metric = "ROC",
+                    trControl = ctrl)
+
+plot(model.mars)
+coef(model.mars$finalModel)
+vip(model.mars$finalModel)
+```
+
