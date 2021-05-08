@@ -1,0 +1,183 @@
+---
+title: "SVM-boosting-zc2556"
+author: "Zhe Chen"
+date: "2021/05/08"
+output: pdf_document
+---
+
+```{r}
+# Load libraries 
+library(tidyverse) 
+library(dplyr)
+library(ISLR) 
+library(janitor) 
+library(AppliedPredictiveModeling) 
+library(caret) 
+library(corrplot) 
+library(pROC) 
+library(MASS) 
+library(readxl)
+library(glmnet)
+library(mlbench)
+library(pdp)
+library(vip)
+library(klaR)
+library(rminer)
+```
+
+# Import data
+```{r}
+liver_df = read_excel("./data/liver.xlsx") %>%
+  mutate(outcome = ifelse(is_patient == 1, "yes", "no"), outcome = as.factor(outcome)) %>%
+  dplyr::select(-is_patient) %>%
+  clean_names %>%
+  rename(
+    aspartate_aminotransferase = sgpt, 
+    alamine_aminotransferase = sgot, 
+    albumin_globulin_ratio = ag_ratio, 
+    alkaline_phosphate = alkphos) %>%
+  drop_na 
+liver_df$gender=factor(x=liver_df$gender,levels = c('Female','Male'),labels=c(0, 1))
+liver_df$gender = as.double(liver_df$gender) 
+# female = '1', male = '2'
+```
+
+
+# Exploratory Data Analysis
+```{r}
+# Feature plots 
+theme1 <- transparentTheme(trans = .4)
+trellis.par.set(theme1)
+featurePlot(x = liver_df[, 1:10], 
+            y = liver_df$outcome,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 2))
+# dataset with all the log-transformed predictor variables 
+liver_df1 =
+  liver_df %>%
+  mutate(logtot_bilirubin = log(tot_bilirubin) +1,
+         logdirect_bilirubin = log(direct_bilirubin) +1,
+         logtot_proteins = log(tot_proteins) +1,
+         logalbumin = log(albumin) +1, 
+         loggender = log(gender) +1,
+         logalbumin_globulin_ratio = log(albumin_globulin_ratio) +1,
+         logage = log(age) +1, 
+         logaspartate_aminotransferase = log(aspartate_aminotransferase) +1,
+         logalamine_transferase = log(alamine_aminotransferase ) +1,
+         logalkaline_phosphate = log(alkaline_phosphate) +1) %>% 
+         dplyr::select(logage, loggender, logtot_bilirubin, logdirect_bilirubin, logtot_proteins, logalbumin,
+                           logalbumin_globulin_ratio, logaspartate_aminotransferase, logalamine_transferase,
+                           logalkaline_phosphate, outcome)
+  
+theme1 <- transparentTheme(trans = .4)
+trellis.par.set(theme1)
+featurePlot(x = liver_df1[, 1:10], 
+            y = liver_df1$outcome,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 2))
+# Correlation plot
+corrplot(cor(liver_df[,-11]), tl.srt = 45, order = 'hclust', type = 'upper')
+table(liver_df$outcome)
+```
+
+# Data Partition
+```{r}
+#Create Training and Test Datasets
+set.seed(10)
+dim(liver_df1)
+rowTrain <- createDataPartition(y = liver_df1$outcome,
+                                p = 0.8,
+                                list = FALSE)
+liver.train = liver_df1[rowTrain, ]
+liver.test = liver_df1[-rowTrain, ]
+```
+
+# SVM
+```{r}
+#linear
+ctrl <-trainControl(method = "cv")
+set.seed(10)
+svm.linear.model <- train(
+  outcome ~., data = liver.train, method = "svmLinear",
+  trControl = ctrl,
+  #preProcess = c("center", "scale"),
+  tuneGrid =data.frame(C =exp(seq(-10,1,len=20))),
+  )
+```
+
+```{r}
+plot(svm.linear.model, highlight = TRUE, xTrans = log)
+svm.linear.model$bestTune
+svm.linear.model$finalModel
+```
+
+```{r}
+#linear-with e1071
+ctrl <-trainControl(method = "cv")
+set.seed(10)
+svm.linear2.model <- train(
+  outcome ~., 
+  data = liver.train, 
+  method = "svmLinear2",
+  trControl = ctrl,
+  #preProcess = c("center", "scale"),
+  tuneGrid =data.frame(cost =exp(seq(-10,1,len=20))),
+  )
+```
+
+```{r}
+plot(svm.linear2.model, highlight = TRUE, xTrans = log)
+svm.linear2.model$bestTune
+svm.linear2.model$finalModel
+```
+
+```{r}
+svmr.grid <- expand.grid(C = exp(seq(-10,1,len=20)),
+                         sigma = exp(seq(-8,0,len=10)))
+# tunes over both cost and sigma
+set.seed(10)
+svm.radial.model <- train(outcome ~., 
+                          data = liver.train, 
+                          method = "svmRadialSigma",
+                          trControl = ctrl,
+                          preProcess = c("center", "scale"),
+                          tuneGrid = svmr.grid)
+                          #prob.model = TRUE)
+```
+
+```{r}
+plot(svm.radial.model, highlight = TRUE)
+svm.radial.model$bestTune
+svm.radial.model$finalModel
+```
+
+# boosting
+```{r}
+gbmA.grid <- expand.grid(n.trees = c(2000,3000,4000),
+                         interaction.depth = 1:6,
+                         shrinkage = c(0.001,0.003,0.005),
+                         n.minobsinnode = 1)
+
+ctrl.boost <- trainControl(method = "cv",
+                     classProbs = TRUE,
+                     summaryFunction = twoClassSummary)
+set.seed(10)
+gbmA.model <- train(outcome ~ . ,
+                  data = liver.train,
+                  tuneGrid = gbmA.grid,
+                  trControl = ctrl.boost,
+                  method = "gbm",
+                  distribution = "adaboost",
+                  metric = "ROC",
+                  verbose = FALSE)
+```
+
+```{r}
+ggplot(gbmA.model, highlight = TRUE)
+```
+
+
