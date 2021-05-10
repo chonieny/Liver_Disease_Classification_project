@@ -23,6 +23,8 @@ library(pdp)
 library(vip)
 library(klaR)
 library(rminer)
+library(gbm)
+library(DALEX)
 ```
 
 # Import data
@@ -142,11 +144,12 @@ svmr.grid <- expand.grid(C = exp(seq(-10,1,len=20)),
 set.seed(10)
 svm.radial.model <- train(outcome ~., 
                           data = liver.train, 
-                          method = "svmRadialSigma",
+                          method = "svmRadial",
                           trControl = ctrl,
                           preProcess = c("center", "scale"),
-                          tuneGrid = svmr.grid)
-                          #prob.model = TRUE)
+                          tuneGrid = svmr.grid,
+                          prob.model = TRUE,
+                          verbose=F)
 ```
 
 ```{r}
@@ -154,6 +157,22 @@ plot(svm.radial.model, highlight = TRUE)
 svm.radial.model$bestTune
 svm.radial.model$finalModel
 ```
+
+```{r}
+x_train <- as.matrix(liver.train[,1:10])
+```
+
+
+```{r}
+explainer_svm <- explain(svm.radial.model,
+                         label = "svmr",
+                         data = x_train,
+                         y = as.numeric(liver_df1$outcome[rowTrain] == "yes"),
+                         verbose = FALSE)
+vi_svm <- model_parts(explainer_svm)
+plot(vi_svm)
+```
+
 
 # boosting
 ```{r}
@@ -178,6 +197,11 @@ gbmA.model <- train(outcome ~ . ,
 
 ```{r}
 ggplot(gbmA.model, highlight = TRUE)
+```
+
+```{r}
+gbmImp <- varImp(gbmA.model, scale = FALSE)
+plot(gbmImp)
 ```
 
 
