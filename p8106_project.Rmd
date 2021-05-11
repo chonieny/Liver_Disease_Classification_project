@@ -20,6 +20,10 @@ library(mlbench)
 library(pdp)
 library(vip)
 library(klaR)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(ranger)
 ```
 
 # Import data
@@ -66,9 +70,9 @@ liver_df1 =
          logaspartate_aminotransferase = log(aspartate_aminotransferase) +1,
          logalamine_transferase = log(alamine_aminotransferase ) +1,
          logalkaline_phosphate = log(alkaline_phosphate) +1) %>% 
-         dplyr::select(logage, loggender, logtot_bilirubin, logdirect_bilirubin, logtot_proteins, logalbumin,
-                           logalbumin_globulin_ratio, logaspartate_aminotransferase, logalamine_transferase,
-                           logalkaline_phosphate, outcome)
+         dplyr::select(logage, loggender, logtot_bilirubin, logdirect_bilirubin, logtot_proteins,
+                       logalbumin, logalbumin_globulin_ratio, logaspartate_aminotransferase,
+                       logalamine_transferase, logalkaline_phosphate, outcome)
   
 
 theme1 <- transparentTheme(trans = .4)
@@ -175,4 +179,35 @@ plot(model.mars)
 coef(model.mars$finalModel)
 vip(model.mars$finalModel)
 ```
+
+# REGRESSION TREE
+```{r}
+set.seed(1)
+tree1 = rpart(formula = outcome ~ ., data = liver_df1, subset = rowTrain, 
+              control = rpart.control(cp = 0))
+rpart.plot(tree1)
+```
+
+# RANDOM FORESTS
+```{r}
+ctrl2 = trainControl(method = "cv", classProbs = T, summaryFunction = twoClassSummary)
+
+rf.grid = expand.grid(mtry = 1:10, splitrule = "gini", 
+                      min.node.size = seq(from = 2, to = 10, by = 2))
+
+set.seed(1)
+rf.fit = train(outcome ~ ., liver_df1, subset = rowTrain, method = "ranger", 
+               tuneGrid = rf.grid, metric = "ROC", trControl = ctrl2)
+
+ggplot(rf.fit, highlight = T)
+
+rf.pred = predict(rf.fit, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
+roc.rf = roc(liver_df1$outcome[-rowTrain], rf.pred)
+
+plot(roc.rf)
+auc = c(roc.rf$auc[1])
+modelNames = c("Random Forest")
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)))
+```
+
 
