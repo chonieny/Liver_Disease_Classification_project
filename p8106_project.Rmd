@@ -194,7 +194,11 @@ vip(model.mars$finalModel)
 set.seed(1)
 tree1 = rpart(formula = outcome ~ ., data = liver_df1, subset = rowTrain, 
               control = rpart.control(cp = 0))
-rpart.plot(tree1)
+cpTable = printcp(tree1)
+minErr = which.min(cpTable[,4])
+
+tree2 = prune(tree1, cp = cpTable[minErr,1])
+rpart.plot(tree2)
 ```
 
 # RANDOM FORESTS
