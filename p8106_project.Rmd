@@ -188,6 +188,85 @@ plot(model.mars)
 coef(model.mars$finalModel)
 vip(model.mars$finalModel)
 ```
+# KNN
+```{r}
+set.seed(10)
+ctrl <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+model.knn <- train(x = liver_df1[rowTrain,1:10],
+                   y = liver_df1$outcome[rowTrain],
+                   method = "knn",
+                   preProcess = c("center", "scale"), 
+                   tuneGrid = data.frame(k = seq(1, 200, by = 5)),  
+                   trControl = ctrl)
+
+liver_df1$outcome[-rowTrain]
+model.knn$bestTune
+pred_knn = predict(model.knn, newdata = liver.test, type = 'prob')
+roc_knn <- roc(liver_df1$outcome[-rowTrain], pred_knn[,2])
+plot.roc(roc_knn, legacy.axes = TRUE, print.auc = TRUE)
+```
+
+# LDA
+```{r}
+set.seed(10)
+lda.fit <- lda(outcome~., 
+               data = liver.train)
+
+
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+set.seed(10)
+model.lda <- train(x = liver_df1[rowTrain,1:10], 
+                   y = liver_df1$outcome[rowTrain],
+                   method = "lda",
+                   metric = "ROC",
+                   trControl = ctrl)
+lda.pred <- predict(lda.fit, newdata = liver.test)
+roc.lda <- roc(liver_df1[-rowTrain,]$outcome, lda.pred$posterior[,2])
+plot(roc.lda, legacy.axes = TRUE, print.auc = TRUE)
+```
+
+# QDA
+```{r}
+set.seed(10)
+qda.fit <- qda(outcome~., 
+               data = liver.train)
+
+set.seed(10)
+model.qda <- train(x = liver_df1[rowTrain,1:10], 
+                   y = liver_df1$outcome[rowTrain],
+                   method = "qda",
+                   metric = "ROC",
+                   trControl = ctrl)
+qda.pred <- predict(qda.fit, newdata = liver.test)
+roc.qda <- roc(liver_df1[-rowTrain,]$outcome, qda.pred$posterior[,2])
+plot(roc.qda, legacy.axes = TRUE, print.auc = TRUE)
+
+
+auc <- c(roc.lda$auc[1], roc.qda$auc[1])
+```
+
+
+# Naive Bayes
+```{r}
+nbGrid <- expand.grid(usekernel = c(FALSE,TRUE), 
+                      fL = 1,
+                      adjust = seq(.2, 3, by = .2))
+model.nb <- train(x = liver_df1[rowTrain,1:10], 
+                  y = liver_df1$outcome[rowTrain],
+                  method = "nb",
+                  tuneGrid = nbGrid,
+                  metric = "ROC",
+                  trControl = ctrl)
+plot(model.nb)
+```
+
+
 
 # CLASSIFICATION TREE
 ```{r}
@@ -313,4 +392,7 @@ ggplot(gbmA.model, highlight = TRUE)
 gbmImp <- varImp(gbmA.model, scale = FALSE)
 plot(gbmImp)
 ```
+
+
+
 
