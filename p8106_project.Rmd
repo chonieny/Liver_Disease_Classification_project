@@ -276,12 +276,8 @@ plot(model.nb)
 set.seed(1)
 tree1 = rpart(formula = outcome ~ ., data = liver_df1, subset = rowTrain, 
               control = rpart.control(cp = 0))
-cpTable = printcp(tree1)
-minErr = which.min(cpTable[,4])
-
-tree2 = prune(tree1, cp = cpTable[minErr,1])
-rpart.plot(tree2)
-summary(tree2)
+rpart.plot(tree1)
+#summary(tree1)
 ```
 
 # RANDOM FORESTS
@@ -295,15 +291,10 @@ set.seed(1)
 model.rf = train(outcome ~ ., liver_df1, subset = rowTrain, method = "ranger", 
                tuneGrid = rf.grid, metric = "ROC", trControl = ctrl3)
 
-ggplot(rf.fit, highlight = T)
-
-rf.pred = predict(rf.fit, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
-roc.rf = roc(liver_df1$outcome[-rowTrain], rf.pred)
-
-plot(roc.rf)
-auc = c(roc.rf$auc[1])
-modelNames = c("Random Forest")
-legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)))
+RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "class")
+roc.rf = roc(liver_df1$outcome[-rowTrain], RF.pred)
+auc.rf = c(roc.rf$auc[1])
+auc.rf
 ```
 
 # SVM
@@ -341,25 +332,15 @@ svm.linear2.model$finalModel
 ```
 
 ```{r}
-svmr.grid <- expand.grid(C = exp(seq(-1, 4,len = 10)),
-                         sigma = exp(seq(-10,0,len = 10)))
+svmr.grid <- expand.grid(C = exp(seq(-1, 4,len = 10)), sigma = exp(seq(-10,0,len = 10)))
+
 # tunes over both cost and sigma
 set.seed(10)
-svm.radial.model <- train(outcome ~., 
-                          data = liver_df1,
-                          subset = rowTrain,
-                          method = "svmRadialSigma",
-                          trControl = ctrl4,
-                          preProcess = c("center", "scale"),
-                          tuneGrid = svmr.grid,
-                          prob.model = TRUE,
-                          verbose=T) # not working, saying "maximum number of iterations reached"
 
 svm.radial.model <- train(outcome ~ . , liver_df1, 
                   subset = rowTrain,
                   method = "svmRadialSigma",
                   preProcess = c("center", "scale"),
-                  tuneGrid = svmr.grid,
                   trControl = ctrl4)
 
 plot(svm.radial.model, highlight = TRUE)
@@ -413,7 +394,7 @@ RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 LDA.pred = predict(model.lda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 QDA.pred = predict(model.qda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 NB.pred = predict(model.nb, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
-SVM.pred = predict(svm.radial.model, newdata = liver_df1[-rowTrain, ], type = "prob")[,1] #ERROR
+SVM.pred = predict(svm.radial.model, newdata = liver_df1[-rowTrain, ]) 
 GBM.pred = predict(gbmA.model, newdata = liver_df1[-rowTrain, ], type = "prob")[,1] 
 GLM.pred = predict(model.glm, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 GLMN.pred = predict(model.glmn, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
@@ -434,8 +415,8 @@ perf4 = performance(pred4, "tpr", "fpr")
 pred5 = prediction(as.numeric(NB.pred), liver_df1$outcome[-rowTrain])
 perf5 = performance(pred5, "tpr", "fpr")
 
-#pred6 = prediction(as.numeric(SVM.pred), liver_df1$outcome[-rowTrain], ) #ERROR
-#perf6 = performance(pred6, "tpr", "fpr")
+pred6 = prediction(as.numeric(SVM.pred), liver_df1$outcome[-rowTrain]) 
+perf6 = performance(pred6, "tpr", "fpr")
 
 pred7 = prediction(as.numeric(GBM.pred), liver_df1$outcome[-rowTrain])
 perf7 = performance(pred7, "tpr", "fpr")
@@ -455,18 +436,15 @@ plot(perf2, col = "blue"); par(new = T)
 plot(perf3, col = "green"); par(new = T)
 plot(perf4, col = "orange"); par(new = T)
 plot(perf5, col = "yellow"); par(new = T)
-#plot(perf6, col = "purple"); par(new = T)
+plot(perf6, col = "purple"); par(new = T)
 plot(perf7, col = "pink"); par(new = T)
 plot(perf8, col = "brown"); par(new = T)
 plot(perf9, col = "turquoise"); par(new = T)
 plot(perf10, col = "navy")
 
 legend("topleft", c("Mars","RF SVM", "LDA", "QDA", "NB", "SVM", "GBM", "GLM", "GLMN", "KNN"),
-       lty = c(1,1), lwd=c(2.5,2.5), 
+       lty = c(1,1), lwd = c(2.5,2.5), 
        col = c("red", "blue", "green", "orange", "yellow", "purple", "pink", "black", "brown",
              "turquoise", "navy"), bty = "n")
-
-
-
 ```
 
