@@ -135,7 +135,7 @@ plot(smooth(roc.glm), col = 4, add = TRUE)
 
 # Fit a logistic regression with CARET 
 set.seed(10)
-ctrl1 <- trainControl(method = "repeatedcv", repeats = 10,
+ctrl1 <- trainControl(method = "cv",
                      summaryFunction = twoClassSummary,
                      classProbs = TRUE)
 model.glm <- train(x = liver_df1[rowTrain,1:10],
@@ -150,8 +150,7 @@ model.glm <- train(x = liver_df1[rowTrain,1:10],
 
 # Regularized logistic regression
 ```{r}
-ctrl2 <- trainControl(method = "repeatedcv",
-                    repeats = 5,
+ctrl2 <- trainControl(method = "cv",
                     summaryFunction = twoClassSummary,
                     classProbs = TRUE)
 
@@ -193,10 +192,6 @@ vip(model.mars$finalModel)
 # KNN
 ```{r}
 set.seed(10)
-ctrl1 <- trainControl(method = "repeatedcv", repeats = 10,
-                     summaryFunction = twoClassSummary,
-                     classProbs = TRUE)
-
 
 model.knn <- train(x = liver_df1[rowTrain,1:10],
                    y = liver_df1$outcome[rowTrain],
@@ -218,11 +213,6 @@ set.seed(10)
 lda.fit <- lda(outcome~., 
                data = liver.train)
 
-
-
-ctrl <- trainControl(method = "repeatedcv", repeats = 10,
-                     summaryFunction = twoClassSummary,
-                     classProbs = TRUE)
 set.seed(10)
 model.lda <- train(x = liver_df1[rowTrain,1:10], 
                    y = liver_df1$outcome[rowTrain],
@@ -282,19 +272,19 @@ rpart.plot(tree1)
 
 # RANDOM FORESTS
 ```{r}
-ctrl3 = trainControl(method = "cv", classProbs = T, summaryFunction = twoClassSummary)
 
-rf.grid = expand.grid(mtry = 1:10, splitrule = "gini", 
-                      min.node.size = seq(from = 2, to = 10, by = 2))
 
-set.seed(1)
-model.rf = train(outcome ~ ., liver_df1, subset = rowTrain, method = "ranger", 
-               tuneGrid = rf.grid, metric = "ROC", trControl = ctrl3)
+#rf.grid = expand.grid(mtry = 1:10, splitrule = "gini", 
+                      #min.node.size = seq(from = 2, to = 10, by = 2))
 
-RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "class")
-roc.rf = roc(liver_df1$outcome[-rowTrain], RF.pred)
-auc.rf = c(roc.rf$auc[1])
-auc.rf
+#set.seed(1)
+#model.rf = train(outcome ~ ., liver_df1, subset = rowTrain, method = "ranger", 
+               #tuneGrid = rf.grid, metric = "ROC", trControl = ctrl1)
+
+#RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")
+#roc.rf = roc(liver_df1$outcome[-rowTrain], RF.pred) #error appears for this line 
+#auc.rf = c(roc.rf$auc[1])
+#auc.rf
 ```
 
 # SVM
@@ -386,11 +376,19 @@ gbmImp <- varImp(gbmA.model, scale = FALSE)
 plot(gbmImp)
 ```
 
+# Let's select the Final Model by comparing each model's mean cross-validation AUC 
+```{r}
+#res <- resamples(list(MARS = model.mars, RF = model.rf, SVM = svm.radial.model, GBM = gbmA.model, LDA = model.lda, QDA = model.qda, NB = model.nb, GLM = model.glm, KNN = model.knn))
+#summary(res)
+# bwplot(res, metric = "ROC")  #This line doesn't run 
+```
 
-# ROC MODELS
+
+
+# Let's look at the test set performance: comparing ROC MODELS
 ```{r}
 mars.pred = predict(model.mars, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
-RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
+#RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 LDA.pred = predict(model.lda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 QDA.pred = predict(model.qda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 NB.pred = predict(model.nb, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
@@ -403,8 +401,8 @@ KNN.pred = predict(model.knn, newdata = liver_df1[-rowTrain, ], type = "prob")[,
 pred1 = prediction(as.numeric(mars.pred), liver_df1$outcome[-rowTrain])
 perf1 = performance(pred1, "tpr", "fpr")
 
-pred2 = prediction(as.numeric(RF.pred), liver_df1$outcome[-rowTrain])
-perf2 = performance(pred2, "tpr", "fpr")
+#pred2 = prediction(as.numeric(RF.pred), liver_df1$outcome[-rowTrain])
+#perf2 = performance(pred2, "tpr", "fpr")
 
 pred3 = prediction(as.numeric(LDA.pred), liver_df1$outcome[-rowTrain])
 perf3 = performance(pred3, "tpr", "fpr")
@@ -432,7 +430,7 @@ perf10 = performance(pred10, "tpr", "fpr")
 
 
 plot(perf1, col = "red"); par(new = T)
-plot(perf2, col = "blue"); par(new = T)
+#plot(perf2, col = "blue"); par(new = T)
 plot(perf3, col = "green"); par(new = T)
 plot(perf4, col = "orange"); par(new = T)
 plot(perf5, col = "yellow"); par(new = T)
@@ -442,9 +440,9 @@ plot(perf8, col = "brown"); par(new = T)
 plot(perf9, col = "turquoise"); par(new = T)
 plot(perf10, col = "navy")
 
-legend("topleft", c("Mars","RF SVM", "LDA", "QDA", "NB", "SVM", "GBM", "GLM", "GLMN", "KNN"),
-       lty = c(1,1), lwd = c(2.5,2.5), 
-       col = c("red", "blue", "green", "orange", "yellow", "purple", "pink", "black", "brown",
-             "turquoise", "navy"), bty = "n")
+#legend("topleft", c("Mars","RF SVM", "LDA", "QDA", "NB", "SVM", "GBM", "GLM", "GLMN", "KNN"),
+       #lty = c(1,1), lwd = c(2.5,2.5), 
+       #col = c("red", "blue", "green", "orange", "yellow", "purple", "pink", "black", "brown",
+             #"turquoise", "navy"), bty = "n")
 ```
 
