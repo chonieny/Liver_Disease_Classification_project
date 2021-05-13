@@ -327,24 +327,9 @@ svm.radial.model <- train(outcome ~ . , liver_df1,
                   trControl = ctrl4,
                   prob.model = TRUE,
                   tuneGrid = svmr.grid, metric = "ROC")
-plot(svm.linear2.model, highlight = TRUE, xTrans = log)
-svm.linear2.model$bestTune
-svm.linear2.model$finalModel
 ```
 
 ```{r}
-svmr.grid <- expand.grid(C = exp(seq(-1, 4,len = 10)), sigma = exp(seq(-10,0,len = 10)))
-
-# tunes over both cost and sigma
-set.seed(10)
-
-
-svm.radial.model <- train(outcome ~ . , liver_df1, 
-                  subset = rowTrain,
-                  method = "svmRadial",
-                  preProcess = c("center", "scale"),
-                  trControl = ctrl4, prob.model = T)
-
 plot(svm.radial.model, highlight = TRUE)
 svm.radial.model$bestTune
 svm.radial.model$finalModel
