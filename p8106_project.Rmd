@@ -292,16 +292,17 @@ rpart.plot(tree1)
 #linear
 ctrl4 <-trainControl(method = "cv")
 set.seed(10)
-svm.linear.model <- train(
-  outcome ~., data = liver.train, method = "svmLinear",
+svm.linear.model <- train(outcome ~., data = liver.train, method = "svmLinear",
   trControl = ctrl4,
-  #preProcess = c("center", "scale"),
+  preProcess = c("center", "scale"),
   tuneGrid =data.frame(C =exp(seq(-10,1,len=20))),
   )
 
 plot(svm.linear.model, highlight = TRUE, xTrans = log)
 svm.linear.model$bestTune
 svm.linear.model$finalModel
+max(svml.linear.model$result$ROC)
+ggplot(svm.linear.model, highlight = TRUE)
 ```
 
 ```{r}
@@ -319,6 +320,8 @@ svm.linear2.model <- train(
 plot(svm.linear2.model, highlight = TRUE, xTrans = log)
 svm.linear2.model$bestTune
 svm.linear2.model$finalModel
+max(svm.linear2.model$result$ROC)
+ggplot(svm.linear2.model, highlight = TRUE)
 ```
 
 ```{r}
@@ -336,6 +339,7 @@ svm.radial.model <- train(outcome ~ . , liver_df1,
 plot(svm.radial.model, highlight = TRUE)
 svm.radial.model$bestTune
 svm.radial.model$finalModel
+ggplot(svm.radial.model, highlight = TRUE)
 ```
 
 ```{r}
@@ -378,9 +382,9 @@ plot(gbmImp)
 
 # Let's select the Final Model by comparing each model's mean cross-validation AUC 
 ```{r}
-#res <- resamples(list(MARS = model.mars, RF = model.rf, SVM = svm.radial.model, GBM = gbmA.model, LDA = model.lda, QDA = model.qda, NB = model.nb, GLM = model.glm, KNN = model.knn))
-#summary(res)
-# bwplot(res, metric = "ROC")  #This line doesn't run 
+res <- resamples(list(MARS = model.mars, RF = model.rf, SVM = svm.radial.model, GBM = gbmA.model, LDA = model.lda, QDA = model.qda, NB = model.nb, GLM = model.glm, KNN = model.knn))
+summary(res)
+bwplot(res, metric = "ROC")  #This line doesn't run 
 ```
 
 
