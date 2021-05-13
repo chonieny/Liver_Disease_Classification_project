@@ -188,6 +188,7 @@ model.mars <- train(x = liver_df1[rowTrain,1:10],
 plot(model.mars)
 coef(model.mars$finalModel)
 vip(model.mars$finalModel)
+
 ```
 # KNN
 ```{r}
@@ -336,6 +337,9 @@ svm.radial.model <- train(outcome ~ . , liver_df1,
 plot(svm.radial.model, highlight = TRUE)
 svm.radial.model$bestTune
 svm.radial.model$finalModel
+
+SVM.pred = predict(svm.radial.model, newdata = liver_df1[-rowTrain, ]) 
+confusionMatrix(data = SVM.pred, reference = liver_df1[-rowTrain, ]$outcome)
 ```
 
 ```{r}
@@ -379,8 +383,16 @@ plot(gbmImp)
 # Let's select the Final Model by comparing each model's mean cross-validation AUC 
 ```{r}
 #res <- resamples(list(MARS = model.mars, RF = model.rf, SVM = svm.radial.model, GBM = gbmA.model, LDA = model.lda, QDA = model.qda, NB = model.nb, GLM = model.glm, KNN = model.knn))
-#summary(res)
-# bwplot(res, metric = "ROC")  #This line doesn't run 
+
+res <- resamples(list(MARS = model.mars, 
+                      LDA = model.lda, 
+                      QDA = model.qda, 
+                      GLM = model.glm, 
+                      KNN = model.knn,
+                      GBM = gbmA.model,
+                      NB = model.nb)) 
+summary(res) #RF, SVM not included
+bwplot(res, metric = "ROC")
 ```
 
 
