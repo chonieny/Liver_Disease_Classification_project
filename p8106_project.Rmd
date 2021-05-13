@@ -273,19 +273,12 @@ summary(tree1)
 
 # RANDOM FORESTS
 ```{r}
-train_control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-model.rf <- train(outcome~., data = liver_df1, subset = rowTrain, method = "rpart", 
-                  trControl = train_control, parms = list(split = "gini"))
-RF.pred <- predict(model.rf, newdata = liver_df1[-rowTrain, ])
+ctrl3 <- trainControl(method = "cv", summaryFunction = twoClassSummary, classProbs = T)
+model.rf2 <- train(outcome~., data = liver_df1, subset = rowTrain, method = "rpart", 
+                   trControl =ctrl3, metric = "ROC")
+RF.pred <- predict(model.rf2, newdata = liver_df1[-rowTrain, ])
 confu_dtree <- confusionMatrix(RF.pred, liver_df1[-rowTrain, ]$outcome)
 confu_dtree
-
-#AUC
-PredDTModel <- predict(model.rf, newdata = liver_df1[-rowTrain, ], type = 'prob')
-DTPrediction <- prediction(PredDTModel[2],liver_df1[-rowTrain, ]$outcome)
-aucDT <- performance(DTPrediction, measure = "auc")
-aucDT <- aucDT@y.values[[1]]
-aucDT
 ```
 
 # SVM
@@ -390,8 +383,9 @@ res <- resamples(list(MARS = model.mars,
                       GLM = model.glm, 
                       KNN = model.knn,
                       GBM = gbmA.model,
-                      NB = model.nb)) 
-summary(res) #RF, SVM not included
+                      NB = model.nb, 
+                      RF = model.rf2)) 
+summary(res) # SVM not included
 bwplot(res, metric = "ROC")
 ```
 
