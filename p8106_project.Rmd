@@ -267,24 +267,24 @@ set.seed(1)
 tree1 = rpart(formula = outcome ~ ., data = liver_df1, subset = rowTrain, 
               control = rpart.control(cp = 0))
 rpart.plot(tree1)
-#summary(tree1)
+summary(tree1)
 ```
 
 # RANDOM FORESTS
 ```{r}
+train_control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+model.rf <- train(outcome~., data = liver_df1, subset = rowTrain, method = "rpart", 
+                  trControl = train_control, parms = list(split = "gini"))
+RF.pred <- predict(model.rf, newdata = liver_df1[-rowTrain, ])
+confu_dtree <- confusionMatrix(RF.pred, liver_df1[-rowTrain, ]$outcome)
+confu_dtree
 
-
-#rf.grid = expand.grid(mtry = 1:10, splitrule = "gini", 
-                      #min.node.size = seq(from = 2, to = 10, by = 2))
-
-#set.seed(1)
-#model.rf = train(outcome ~ ., liver_df1, subset = rowTrain, method = "ranger", 
-               #tuneGrid = rf.grid, metric = "ROC", trControl = ctrl1)
-
-#RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")
-#roc.rf = roc(liver_df1$outcome[-rowTrain], RF.pred) #error appears for this line 
-#auc.rf = c(roc.rf$auc[1])
-#auc.rf
+#AUC
+PredDTModel <- predict(model.rf, newdata = liver_df1[-rowTrain, ], type = 'prob')
+DTPrediction <- prediction(PredDTModel[2],liver_df1[-rowTrain, ]$outcome)
+aucDT <- performance(DTPrediction, measure = "auc")
+aucDT <- aucDT@y.values[[1]]
+aucDT
 ```
 
 # SVM
@@ -388,7 +388,7 @@ plot(gbmImp)
 # Let's look at the test set performance: comparing ROC MODELS
 ```{r}
 mars.pred = predict(model.mars, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
-#RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
+RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 LDA.pred = predict(model.lda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 QDA.pred = predict(model.qda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 NB.pred = predict(model.nb, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
@@ -401,8 +401,8 @@ KNN.pred = predict(model.knn, newdata = liver_df1[-rowTrain, ], type = "prob")[,
 pred1 = prediction(as.numeric(mars.pred), liver_df1$outcome[-rowTrain])
 perf1 = performance(pred1, "tpr", "fpr")
 
-#pred2 = prediction(as.numeric(RF.pred), liver_df1$outcome[-rowTrain])
-#perf2 = performance(pred2, "tpr", "fpr")
+pred2 = prediction(as.numeric(RF.pred), liver_df1$outcome[-rowTrain])
+perf2 = performance(pred2, "tpr", "fpr")
 
 pred3 = prediction(as.numeric(LDA.pred), liver_df1$outcome[-rowTrain])
 perf3 = performance(pred3, "tpr", "fpr")
@@ -430,7 +430,7 @@ perf10 = performance(pred10, "tpr", "fpr")
 
 
 plot(perf1, col = "red"); par(new = T)
-#plot(perf2, col = "blue"); par(new = T)
+plot(perf2, col = "blue"); par(new = T)
 plot(perf3, col = "green"); par(new = T)
 plot(perf4, col = "orange"); par(new = T)
 plot(perf5, col = "yellow"); par(new = T)
@@ -440,9 +440,9 @@ plot(perf8, col = "brown"); par(new = T)
 plot(perf9, col = "turquoise"); par(new = T)
 plot(perf10, col = "navy")
 
-#legend("topleft", c("Mars","RF SVM", "LDA", "QDA", "NB", "SVM", "GBM", "GLM", "GLMN", "KNN"),
-       #lty = c(1,1), lwd = c(2.5,2.5), 
-       #col = c("red", "blue", "green", "orange", "yellow", "purple", "pink", "black", "brown",
-             #"turquoise", "navy"), bty = "n")
+legend("topleft", c("Mars","RF SVM", "LDA", "QDA", "NB", "SVM", "GBM", "GLM", "GLMN", "KNN"),
+       lty = c(1,1), lwd = c(2.5,2.5), 
+       col = c("red", "blue", "green", "orange", "yellow", "purple", "pink", "black", "brown",
+             "turquoise", "navy"), bty = "n")
 ```
 
