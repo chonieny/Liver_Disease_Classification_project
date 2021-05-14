@@ -270,6 +270,11 @@ tree1 = rpart(formula = outcome ~ ., data = liver_df1, subset = rowTrain,
               control = rpart.control(cp = 0))
 rpart.plot(tree1)
 summary(tree1)
+plotcp(tree1)
+
+CPtable <- tree1$cptable
+minErr <- which.min(CPtable[,4])
+CPtable[minErr,1]
 ```
 
 # RANDOM FORESTS
