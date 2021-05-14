@@ -190,6 +190,7 @@ coef(model.mars$finalModel)
 vip(model.mars$finalModel)
 
 ```
+
 # KNN
 ```{r}
 set.seed(10)
@@ -273,7 +274,8 @@ summary(tree1)
 
 # RANDOM FORESTS
 ```{r}
-ctrl3 <- trainControl(method = "cv", summaryFunction = twoClassSummary, classProbs = T)
+ctrl3 <- trainControl(method = "cv", summaryFunction = twoClassSummary, classProbs = TRUE)
+
 
 model.rf2 <- train(outcome~., data = liver_df1, subset = rowTrain, method = "rpart", 
                    trControl = ctrl3, metric = "ROC")
@@ -283,48 +285,29 @@ confu_dtree <- confusionMatrix(RF.pred, liver_df1[-rowTrain, ]$outcome)
 confu_dtree
 
 
-set.seed(1)
-rf2.final.per <- ranger(outcome ~ . , 
-                        data = liver_df1[rowTrain,],
-                        mtry = model.rf2$bestTune[[1]], 
-                        splitrule = "gini",
-                        min.node.size = model.rf2$bestTune[[3]],
-                        importance = "permutation",
-                        scale.permutation.importance = TRUE) 
+#set.seed(1)
+#rf2.final.per <- ranger(outcome ~ . , 
+                        #data = liver_df1[rowTrain,],
+                        #mtry = model.rf2$bestTune[[1]], 
+                        #splitrule = "gini",
+                        #min.node.size = model.rf2$bestTune[[3]],
+                        #importance = "permutation",
+                        #scale.permutation.importance = TRUE) 
 
-barplot(sort(ranger::importance(rf2.final.per), decreasing = FALSE), 
-        las = 2, horiz = TRUE, cex.names = 0.7,
-        col = colorRampPalette(colors = c("cyan","blue"))(19))
+#barplot(sort(ranger::importance(rf2.final.per), decreasing = FALSE), 
+        #las = 2, horiz = TRUE, cex.names = 0.7,
+        #col = colorRampPalette(colors = c("cyan","blue"))(19))
 
 ```
 
-# SVM
+#SVM
 ```{r}
-#linear
-ctrl4 <-trainControl(method = "cv")
-set.seed(10)
-svm.linear.model <- train(outcome ~., data = liver.train, method = "svmLinear",
-  trControl = ctrl4,
-  preProcess = c("center", "scale"),
-  tuneGrid =data.frame(C =exp(seq(-10,1,len=20))),
-  )
-
-plot(svm.linear.model, highlight = TRUE, xTrans = log)
-svm.linear.model$bestTune
-svm.linear.model$finalModel
-max(svml.linear.model$result$ROC)
-ggplot(svm.linear.model, highlight = TRUE)
-```
-
-```{r}
-<<<<<<< HEAD
-ctrl4 <-trainControl(method = "cv")
 set.seed(10)
 svm.linear2.model <- train(
   outcome ~., 
   data = liver.train, 
   method = "svmLinear2",
-  trControl = ctrl4,
+  trControl = ctrl3,
   #preProcess = c("center", "scale"),
   tuneGrid =data.frame(cost =exp(seq(-10,1,len=20))),
   )
@@ -340,9 +323,6 @@ ggplot(svm.linear2.model, highlight = TRUE)
 svmr.grid <- expand.grid(C = exp(seq(-1, 4,len = 10)), sigma = exp(seq(-10,0,len = 10)))
 
 # tunes over both cost and sigma
-=======
-ctrl4 <- trainControl(method = "cv", classProbs = T)
->>>>>>> 27bfc442f15e53def066dd096005acf17738fbfb
 set.seed(10)
 svmr.grid <- expand.grid(C = exp(seq(-10,1,len = 20)),
                          sigma = exp(seq(-8,0,len = 10)))
@@ -350,7 +330,7 @@ svm.radial.model <- train(outcome ~ . , liver_df1,
                   subset = rowTrain,
                   method = "svmRadial",
                   preProcess = c("center", "scale"),
-                  trControl = ctrl4,
+                  trControl = ctrl3,
                   prob.model = TRUE,
                   tuneGrid = svmr.grid, metric = "ROC")
 ```
@@ -359,13 +339,11 @@ svm.radial.model <- train(outcome ~ . , liver_df1,
 plot(svm.radial.model, highlight = TRUE)
 svm.radial.model$bestTune
 svm.radial.model$finalModel
-<<<<<<< HEAD
 ggplot(svm.radial.model, highlight = TRUE)
-=======
 
 SVM.pred = predict(svm.radial.model, newdata = liver_df1[-rowTrain, ]) 
 confusionMatrix(data = SVM.pred, reference = liver_df1[-rowTrain, ]$outcome)
->>>>>>> 27bfc442f15e53def066dd096005acf17738fbfb
+
 ```
 
 ```{r}
@@ -408,26 +386,28 @@ plot(gbmImp)
 
 # Let's select the Final Model by comparing each model's mean cross-validation AUC 
 ```{r}
-<<<<<<< HEAD
-res <- resamples(list(MARS = model.mars, RF = model.rf, SVM = svm.radial.model, GBM = gbmA.model, LDA = model.lda, QDA = model.qda, NB = model.nb, GLM = model.glm, KNN = model.knn))
+
+res <- resamples(list(MARS = model.mars, RF = model.rf2, SVM = svm.radial.model, GBM = gbmA.model, LDA = model.lda, QDA = model.qda, NB = model.nb, GLM = model.glm, KNN = model.knn))
 summary(res)
 bwplot(res, metric = "ROC")  #This line doesn't run 
-=======
+
 res <- resamples(list(MARS = model.mars, 
                       LDA = model.lda, 
                       QDA = model.qda, 
-                      GLM = model.glm, 
+                      GLM = model.glm,
+                      GLMN =model.glmn,
                       KNN = model.knn,
                       GBM = gbmA.model,
                       NB = model.nb, 
-                      RF = model.rf2)) 
-summary(res) # SVM not included
+                      RF = model.rf2,
+                      SVM = svm.radial.model)) 
+summary(res) 
 bwplot(res, metric = "ROC")
 
-resamps_svm <- resamples(list(svmr = svm.radial.model, svml = svm.linear.model))
-summary(resamps_svm)
-bwplot(resamps_svm) #SVM
->>>>>>> 27bfc442f15e53def066dd096005acf17738fbfb
+#resamps_svm <- resamples(list(svmr = svm.radial.model, svml = svm.linear.model))
+#summary(resamps_svm)
+#bwplot(resamps_svm) #SVM
+
 ```
 
 
@@ -435,11 +415,11 @@ bwplot(resamps_svm) #SVM
 # Let's look at the test set performance: comparing ROC MODELS
 ```{r}
 mars.pred = predict(model.mars, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
-RF.pred = predict(model.rf, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
+RF.pred = predict(model.rf2, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 LDA.pred = predict(model.lda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 QDA.pred = predict(model.qda, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 NB.pred = predict(model.nb, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
-#SVM.pred = predict(svm.radial.model, newdata = liver_df1[-rowTrain, ]) 
+SVM.pred = predict(svm.radial.model, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 GBM.pred = predict(gbmA.model, newdata = liver_df1[-rowTrain, ], type = "prob")[,1] 
 GLM.pred = predict(model.glm, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
 GLMN.pred = predict(model.glmn, newdata = liver_df1[-rowTrain, ], type = "prob")[,1]
@@ -450,7 +430,7 @@ roc.RF <- roc(liver_df1[-rowTrain, ]$outcome, RF.pred)
 roc.LDA <- roc(liver_df1[-rowTrain, ]$outcome, LDA.pred)
 roc.QDA <- roc(liver_df1[-rowTrain, ]$outcome, QDA.pred)
 roc.NB <- roc(liver_df1[-rowTrain, ]$outcome, NB.pred)
-#roc.SVM <- roc(liver_df1[-rowTrain, ]$outcome, SVM.pred)
+roc.SVM <- roc(liver_df1[-rowTrain, ]$outcome, SVM.pred)
 roc.GBM <- roc(liver_df1[-rowTrain, ]$outcome, GBM.pred)
 roc.GLM <- roc(liver_df1[-rowTrain, ]$outcome, GLM.pred)
 roc.GLMN <- roc(liver_df1[-rowTrain, ]$outcome, GLMN.pred)
@@ -466,12 +446,13 @@ plot(roc.GBM, add = T, col = 6)
 plot(roc.GLM, add = T, col = 7)
 plot(roc.GLMN, add = T, col = 8)
 plot(roc.KNN, add = T, col = 9)
+plot(roc.SVM, add = T, col =10)
 
-auc <- c(roc.mars$auc[1], roc.RF$auc[1], roc.LDA$auc[1],roc.LDA$auc[1], roc.QDA$auc[1],
+auc <- c(roc.mars$auc[1], roc.RF$auc[1], roc.LDA$auc[1], roc.QDA$auc[1],
          roc.NB$auc[1], roc.GBM$auc[1], roc.GLM$auc[1], roc.GLMN$auc[1],
-         roc.KNN$auc[1])
-modelNames <- c("Mars","RF", "LDA", "QDA", "NB", "GBM", "GLM", "GLMN", "KNN")
+         roc.KNN$auc[1], roc.SVM$auc[1])
+modelNames <- c("Mars","RF", "LDA", "QDA", "NB", "GBM", "GLM", "GLMN", "KNN", "SVM")
 
-legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)), col = 1:9, lwd = 3, ncol = 2, cex = 0.75)
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)), col = 1:10, lwd = 3, ncol = 2, cex = 0.75)
 ```
 
