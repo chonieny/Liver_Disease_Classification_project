@@ -15,8 +15,13 @@ This project aims to build an optimal classification machine learning model to a
     - Packages: tidyverse, caret, glmnet, mlbench, pdp, vip, rpart, ranger, kernlab, gbm, pROC, janitor, corrplot, readxl
 
 ### Exploratory Data Analysis 
+* The distribution of each feature was checked.<br/>
+  Skewed features underwent log transformation
+  
 
 ### Data Cleaning  
+
+
 
 ### Fit Machine Learning Models & Compare their Performances 
 
