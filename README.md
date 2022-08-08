@@ -1,14 +1,21 @@
 # Liver Disease Predictor: Project Overview 
 
-* Objective 
+* **Objective** 
 
-* Walkthrough 
+* **Walkthrough** 
+    - Define the question and collect the data
+    - Exploratory Data Analysis
+    - Data Cleaning 
+    - Fit Machine Learning Models & Hyperparameter Tuning & Compare their performances 
 
-* Data & Coding Language Used 
+* **Data & Coding Language Used** 
+    - Data: 
+    - R Version: 
+    - Packages: 
 
 ### Exploratory Data Analysis 
 
-### Data Cleaning & Feature Engineering 
+### Data Cleaning  
 
-### Fit Machine Learning Models & Hyperparameter Tuning & Compare their Performances 
+### Fit Machine Learning Models & Compare their Performances 
 
