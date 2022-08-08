@@ -12,7 +12,7 @@ This project aims to build an optimal classification machine learning model to a
 * **Data & Coding Language Used** 
     - Data: Collected from patient records in North East of Andhra Pradesh, India 
     - R Version: 4.0.3
-    - Packages: 
+    - Packages: tidyverse, caret, glmnet, mlbench, pdp, vip, rpart, ranger, kernlab, gbm, pROC, janitor, corrplot, readxl
 
 ### Exploratory Data Analysis 
 
