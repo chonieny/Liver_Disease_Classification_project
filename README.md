@@ -16,7 +16,8 @@ This project aims to build an optimal classification machine learning model to a
 
 ### Exploratory Data Analysis 
 * The distribution of each feature was checked.<br/>
-  Skewed features underwent log transformation
+  Log transformation was done on the skewed features, which made their distributions more normal.
+  
   
 
 ### Data Cleaning  
