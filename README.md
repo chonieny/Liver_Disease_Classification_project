@@ -11,7 +11,7 @@ This project aims to build an optimal classification machine learning model to a
 
 * **Data & Coding Language Used** 
     - Data: Collected from patient records in North East of Andhra Pradesh, India 
-    - R Version: 
+    - R Version: 4.0.3
     - Packages: 
 
 ### Exploratory Data Analysis 
