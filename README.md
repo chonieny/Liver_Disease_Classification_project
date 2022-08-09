@@ -36,6 +36,6 @@ This project aims to build an optimal classification machine learning model to a
 * The accuracy of the final model was checked with test data 
 * The feature importance plot was created
 <img src = "viz2.png" style = "width: 50%" title = "Feature Importance Plot"> 
-
+<figcaption>Feature Importance Plot</figcaption>
 
 
