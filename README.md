@@ -35,7 +35,6 @@ This project aims to build an optimal classification machine learning model to a
 * Each model's accuracy and sensitivity were compared: Naive Bayes was chosen as the final model because its accuracy and sensitivity were the highest
 * The accuracy of the final model was checked with test data 
 * The feature importance plot was created
-<img src = "viz2.png" style = "width: 50%" title = "Feature Importance Plot"> 
-<figcaption>Feature Importance Plot</figcaption>
+<img src = "viz2.png" title = "Feature Importance Plot"> 
 
 
