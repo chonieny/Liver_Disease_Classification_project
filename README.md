@@ -21,8 +21,12 @@ This project aims to build an optimal classification machine learning model to a
   <img src = "viz1.png" style = "width: 100%"> 
 
 ### Data Cleaning  
-
-
+* Data were scaled 
+* Skewed features underwent log transformation 
+* Cleaned feature names for easier identification 
+* Re-coded the binary classes of the outcome variable as ‘yes’ and ‘no’ 
+* Dropped the very few missing values that were present in the dataset 
+* Data had balanced outcome classes 
 
 ### Fit Machine Learning Models & Compare their Performances 
 
