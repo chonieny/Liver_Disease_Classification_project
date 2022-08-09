@@ -17,7 +17,7 @@ This project aims to build an optimal classification machine learning model to a
 ### Exploratory Data Analysis 
 * The stratified distribution of each feature was checked.<br/>
   Log transformation was done on the skewed features, which made their distributions more normal.<br/>
-  &#8594; It could be seen that each feature's distribution per outcome class is similar. 
+  &#8594; It could be seen that for each feature, the distributions per outcome class are similar. 
   <img src = "viz1.png" style = "width: 100%"> 
 
 ### Data Cleaning  
