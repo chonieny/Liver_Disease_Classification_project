@@ -29,4 +29,13 @@ This project aims to build an optimal classification machine learning model to a
 * Data had balanced outcome classes 
 
 ### Fit Machine Learning Models & Compare their Performances 
+* The data were split into train and test sets with a test size of 20%
+* Ten models (Regularized logistic regression, MARS, LDA, QDA, Naive Bayes, KNN, Decision Tree, Random Forest, ADA Boosting, SVM) were trained 
+  and the hyperparameters were tuned 
+* Each model's accuracy and sensitivity were compared: Naive Bayes was chosen as the final model because its accuracy and sensitivity were the highest
+* The accuracy of the final model was checked with test data 
+
+
+
+
 
